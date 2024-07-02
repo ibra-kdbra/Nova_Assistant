@@ -84,3 +84,45 @@ export const failSchema = z.object({
   args: z.object({}).optional(),
 });
 
+export const toolSchemaUnion = z.discriminatedUnion("name", [
+  clickSchema,
+  setValueSchema,
+  setValueAndEnterSchema,
+  navigateSchema,
+  scrollSchema,
+  waitSchema,
+  finishSchema,
+  failSchema,
+]);
+const allTools = toolSchemaUnion.options;
+type ToolSchema = (typeof allTools)[number];
+
+export type ToolOperation = z.infer<typeof toolSchemaUnion>;
+
+export function schemaToDescription(schema: ToolSchema): string {
+  let description = "";
+  const shape = schema.shape;
+  const name = shape.name._def.value;
+  const descriptionText = shape.description.unwrap()._def.value;
+  description += `Name: ${name}\nDescription: ${descriptionText}\n`;
+
+  const args = shape.args;
+  // If the tool has arguments, list them. If entire args is ZodOptional, there are no arguments.
+  if (args instanceof z.ZodObject && Object.keys(args.shape).length > 0) {
+    description += "Arguments:\n";
+    Object.entries(args.shape).forEach(([key, value]) => {
+      const argType = value instanceof z.ZodString ? "string" : "unknown";
+      description += `  - ${key} (${argType})\n`;
+    });
+  } else {
+    description += "No arguments.\n";
+  }
+
+  return description;
+}
+
+function getAllToolsDescriptions(): string {
+  return allTools.map(schemaToDescription).join("\n");
+}
+export const allToolsDescriptions = getAllToolsDescriptions();
+

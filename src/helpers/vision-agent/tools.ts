@@ -70,4 +70,17 @@ export const waitSchema = z.object({
   args: z.object({}).optional(),
 });
 
+export const finishSchema = z.object({
+  name: z.literal("finish"),
+  description: z.literal("Indicate the task is finished").optional(),
+  args: z.object({}).optional(),
+});
+
+export const failSchema = z.object({
+  name: z.literal("fail"),
+  description: z
+    .literal("Indicate that you are unable to complete the task")
+    .optional(),
+  args: z.object({}).optional(),
+});
 

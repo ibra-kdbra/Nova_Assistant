@@ -1,4 +1,4 @@
-
+import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { useAppState } from "../state/store";
 import { enumValues } from "./utils";
@@ -6,9 +6,13 @@ import { enumValues } from "./utils";
 export enum SupportedModels {
   Gpt35Turbo16k = "gpt-3.5-turbo-16k",
   Gpt4 = "gpt-4",
+  Gpt4TurboPreview = "gpt-4-turbo-preview",
   Gpt4VisionPreview = "gpt-4-vision-preview",
   Gpt4Turbo = "gpt-4-turbo",
-
+  Gpt4O = "gpt-4o",
+  Claude3Sonnet = "claude-3-sonnet-20240229",
+  Claude3Opus = "claude-3-opus-20240229",
+  Claude35Sonnet = "claude-3-5-sonnet-20240620",
 }
 
 function isSupportedModel(value: string): value is SupportedModels {
@@ -20,9 +24,13 @@ export const DEFAULT_MODEL = SupportedModels.Gpt4Turbo;
 export const DisplayName = {
   [SupportedModels.Gpt35Turbo16k]: "GPT-3.5 Turbo (16k)",
   [SupportedModels.Gpt4]: "GPT-4",
+  [SupportedModels.Gpt4TurboPreview]: "GPT-4 Turbo (Preview)",
   [SupportedModels.Gpt4VisionPreview]: "GPT-4 Vision (Preview)",
   [SupportedModels.Gpt4Turbo]: "GPT-4 Turbo",
-
+  [SupportedModels.Gpt4O]: "GPT-4o",
+  [SupportedModels.Claude3Sonnet]: "Claude 3 Sonnet",
+  [SupportedModels.Claude3Opus]: "Claude 3 Opus",
+  [SupportedModels.Claude35Sonnet]: "Claude 3.5 Sonnet",
 };
 
 export function hasVisionSupport(model: SupportedModels) {
@@ -30,21 +38,27 @@ export function hasVisionSupport(model: SupportedModels) {
     model === SupportedModels.Gpt4VisionPreview ||
     model === SupportedModels.Gpt4Turbo ||
     model === SupportedModels.Gpt4O ||
-
+    model === SupportedModels.Claude3Sonnet ||
+    model === SupportedModels.Claude3Opus ||
+    model === SupportedModels.Claude35Sonnet
   );
 }
 
-export type SDKChoice = "OpenAI" ;
+export type SDKChoice = "OpenAI" | "Anthropic";
 
 function chooseSDK(model: SupportedModels): SDKChoice {
-  
+  if (model.startsWith("claude")) {
+    return "Anthropic";
+  }
   return "OpenAI";
 }
 
 export function isOpenAIModel(model: SupportedModels) {
   return chooseSDK(model) === "OpenAI";
 }
-
+export function isAnthropicModel(model: SupportedModels) {
+  return chooseSDK(model) === "Anthropic";
+}
 
 export function findBestMatchingModel(
   selectedModel: string,
@@ -58,7 +72,9 @@ export function findBestMatchingModel(
     result = selectedModel;
   }
   // ensure the provider's API key is available
-   if (openAIKey && !anthropicKey && !isOpenAIModel(result)) {
+  if (!openAIKey && anthropicKey && !isAnthropicModel(result)) {
+    result = SupportedModels.Claude35Sonnet;
+  } else if (openAIKey && !anthropicKey && !isOpenAIModel(result)) {
     result = SupportedModels.Gpt4O;
   }
   return result;
@@ -137,7 +153,74 @@ export async function fetchResponseFromModelOpenAI(
   };
 }
 
-
+export async function fetchResponseFromModelAnthropic(
+  model: SupportedModels,
+  params: CommonMessageCreateParams,
+): Promise<Response> {
+  const key = useAppState.getState().settings.anthropicKey;
+  if (!key) {
+    throw new Error("No Anthropic key found");
+  }
+  const baseURL = useAppState.getState().settings.anthropicBaseUrl;
+  const anthropic = new Anthropic({
+    apiKey: key,
+    baseURL: baseURL ? baseURL : undefined, // explicitly set to undefined because empty string would cause an error
+  });
+  const content: Anthropic.MessageParam["content"] = [
+    {
+      type: "text",
+      text: params.prompt,
+    },
+  ];
+  if (params.imageData != null) {
+    content.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/webp",
+        // need to remove the prefix
+        data: params.imageData.split("base64,")[1],
+      },
+    });
+  }
+  const messages: Anthropic.MessageParam[] = [
+    {
+      role: "user",
+      content,
+    },
+  ];
+  if (params.jsonMode) {
+    messages.push({
+      role: "assistant",
+      content: [
+        {
+          type: "text",
+          text: "{",
+        },
+      ],
+    });
+  }
+  const completion = await anthropic.messages.create({
+    model,
+    system: params.systemMessage,
+    messages,
+    max_tokens: 1000,
+    temperature: 0,
+  });
+  let rawResponse = completion.content[0].text.trim();
+  if (params.jsonMode && !rawResponse.startsWith("{")) {
+    rawResponse = "{" + rawResponse;
+  }
+  return {
+    usage: {
+      completion_tokens: completion.usage.output_tokens,
+      prompt_tokens: completion.usage.input_tokens,
+      total_tokens:
+        completion.usage.output_tokens + completion.usage.input_tokens,
+    },
+    rawResponse,
+  };
+}
 
 export async function fetchResponseFromModel(
   model: SupportedModels,
@@ -146,5 +229,7 @@ export async function fetchResponseFromModel(
   const sdk = chooseSDK(model);
   if (sdk === "OpenAI") {
     return await fetchResponseFromModelOpenAI(model, params);
-  } 
+  } else {
+    return await fetchResponseFromModelAnthropic(model, params);
+  }
 }

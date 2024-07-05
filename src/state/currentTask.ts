@@ -4,17 +4,18 @@ import {
   disableIncompatibleExtensions,
   reenableExtensions,
 } from "../helpers/disableExtensions";
-
+import { determineNextAction } from "../helpers/dom-agent/determineNextAction";
 import {
   determineNextActionWithVision,
   type QueryResult,
 } from "../helpers/vision-agent/determineNextAction";
+import { determineNavigateAction } from "../helpers/vision-agent/determineNavigateAction";
 import {
   type Action,
   parseResponse,
 } from "../helpers/vision-agent/parseResponse";
 import { callRPCWithTab } from "../helpers/rpc/pageRPC";
-
+import { getSimplifiedDom } from "../helpers/simplifyDom";
 import { sleep, truthyFilter, waitFor } from "../helpers/utils";
 import {
   operateTool,
@@ -24,8 +25,9 @@ import { waitTillHTMLRendered } from "../helpers/rpc/utils";
 import { findActiveTab } from "../helpers/browserUtils";
 import { MyStateCreator } from "./store";
 import buildAnnotatedScreenshots from "../helpers/buildAnnotatedScreenshots";
+import { voiceControl } from "../helpers/voiceControl";
 import { fetchKnowledge, type Knowledge } from "../helpers/knowledge";
-
+import { hasVisionSupport } from "../helpers/aiSdkUtils";
 
 export type TaskHistoryEntry = {
   prompt: string;
@@ -73,7 +75,7 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
   knowledgeInUse: null,
   actions: {
     runTask: async (onError) => {
-
+      const voiceMode = get().settings.voiceMode;
 
       const wasStopped = () => get().currentTask.status !== "running";
       const setActionStatus = (status: CurrentTaskSlice["actionStatus"]) => {
@@ -83,6 +85,9 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
       };
 
       const instructions = get().ui.instructions;
+      if (voiceMode && instructions) {
+        voiceControl.speak("The current task is to " + instructions, onError);
+      }
 
       if (!instructions || get().currentTask.status === "running") return;
 
@@ -119,7 +124,7 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
             );
           }
 
-
+          const isVisionModel = hasVisionSupport(get().settings.selectedModel);
 
           const performAction = async (
             query: QueryResult,
@@ -132,7 +137,13 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
             }
 
             setActionStatus("performing-action");
-
+            if (voiceMode) {
+              if ("speak" in query.action && query.action.speak) {
+                voiceControl.speak(query.action.speak, onError);
+              } else if ("thought" in query.action && query.action.thought) {
+                voiceControl.speak(query.action.thought, onError);
+              }
+            }
 
             set((state) => {
               query &&
@@ -150,12 +161,95 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
             ) {
               return false;
             }
-            
+            if (isVisionModel) {
+              await operateTool(tabId, query.action.operation);
+            } else {
+              await operateToolWithSimpliedDom(tabId, query.action.operation);
+            }
             return true;
           };
 
-          
+          let query: QueryResult | null = null;
 
+          // check if the tab does not allow attaching debugger, e.g. chrome:// pages
+          if (activeTab.url?.startsWith("chrome")) {
+            setActionStatus("generating-action");
+            query = await determineNavigateAction(instructions);
+
+            if (wasStopped()) break;
+
+            const shouldContinue = await performAction(query);
+            if (shouldContinue) {
+              // if navigation was successful, continue the task on the new page
+              setActionStatus("waiting");
+              continue;
+            } else {
+              break;
+            }
+          }
+          await attachDebugger(tabId);
+          await waitTillHTMLRendered(tabId);
+
+          set((state) => {
+            state.currentTask.tabId = tabId;
+          });
+
+          const previousActions = get()
+            .currentTask.history.map((entry) => entry.action)
+            .filter(truthyFilter);
+
+          if (isVisionModel) {
+            setActionStatus("fetching-knoweldge");
+            const url = new URL(activeTab.url ?? "");
+            const customKnowledgeBase = get().settings.customKnowledgeBase;
+            const knowledge = await fetchKnowledge(url, customKnowledgeBase);
+            set((state) => {
+              state.currentTask.knowledgeInUse = knowledge;
+            });
+
+            setActionStatus("annotating-page");
+            const [imgData, labelData] = await buildAnnotatedScreenshots(
+              tabId,
+              knowledge,
+            );
+            const viewportPercentage = await callRPCWithTab(
+              tabId,
+              "getViewportPercentage",
+              [],
+            );
+            if (wasStopped()) break;
+            setActionStatus("generating-action");
+            query = await determineNextActionWithVision(
+              instructions,
+              url,
+              knowledge,
+              previousActions,
+              imgData,
+              labelData,
+              viewportPercentage,
+              3,
+              onError,
+            );
+          } else {
+            setActionStatus("pulling-dom");
+            const pageDOM = await getSimplifiedDom();
+            if (!pageDOM) {
+              set((state) => {
+                state.currentTask.status = "error";
+              });
+              break;
+            }
+
+            if (wasStopped()) break;
+            setActionStatus("generating-action");
+            query = await determineNextAction(
+              instructions,
+              previousActions,
+              pageDOM.outerHTML,
+              3,
+              onError,
+            );
+          }
 
           if (wasStopped()) break;
 
@@ -248,6 +342,16 @@ export const createCurrentTaskSlice: MyStateCreator<CurrentTaskSlice> = (
       }
       await operateTool(get().currentTask.tabId, parsedResponse.operation);
     },
+    startListening: () =>
+      set((state) => {
+        state.currentTask.isListening = true;
+        voiceControl.startListening();
+      }),
+    stopListening: () =>
+      set((state) => {
+        state.currentTask.isListening = false;
+        voiceControl.stopListening();
+      }),
   },
 });
 

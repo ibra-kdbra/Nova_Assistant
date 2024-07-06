@@ -3,7 +3,8 @@ import {
   WEB_WAND_LABEL_ATTRIBUTE_NAME,
   VISIBLE_TEXT_ATTRIBUTE_NAME,
 } from "../../constants";
-
+import { sleep } from "../utils";
+import { type ToolOperation } from "../vision-agent/tools";
 
 function getSelector(label: string): string {
   return `[${WEB_WAND_LABEL_ATTRIBUTE_NAME}="${label}"]`;
@@ -125,3 +126,88 @@ export async function scroll(domActions: DomActions, value: string) {
       console.error("Invalid scroll value", value);
   }
 }
+
+function createOperateTool(
+  click: (domActions: DomActions, label: string) => Promise<boolean>,
+  setValue: (
+    domActions: DomActions,
+    label: string,
+    value: string,
+  ) => Promise<boolean>,
+): (tabId: number, action: ToolOperation) => Promise<void> {
+  return async (tabId: number, action: ToolOperation) => {
+    const domActions = new DomActions(tabId);
+    console.log("operateTool", action);
+    switch (action.name) {
+      case "scroll":
+        await scroll(domActions, action.args.value);
+        break;
+      case "wait":
+        await sleep(3000);
+        break;
+      case "finish":
+        console.log("Action finished successfully.");
+        break;
+      case "fail":
+        console.warn("Action failed.");
+        break;
+      case "navigate":
+        console.log("Navigate to new page", action.args.url);
+        window.open(action.args.url, "_blank");
+        break;
+      case "click": {
+        const success = await click(domActions, action.args.label);
+        if (!success) {
+          console.error(
+            "Unable to find element with label: ",
+            action.args.label,
+          );
+        }
+        break;
+      }
+      case "setValue": {
+        const success = await setValue(
+          domActions,
+          action.args.label,
+          action.args.value || "",
+        );
+        if (!success) {
+          console.error(
+            "Unable to find element with label: ",
+            action.args.label,
+          );
+        }
+        break;
+      }
+      case "setValueAndEnter": {
+        const success = await setValue(
+          domActions,
+          action.args.label,
+          (action.args.value || "") + "\n",
+        );
+        if (!success) {
+          console.error(
+            "Unable to find element with label: ",
+            action.args.label,
+          );
+        }
+        break;
+      }
+      default:
+        console.error("Invalid action name", action);
+    }
+  };
+}
+
+export const operateTool = createOperateTool(clickWithLabel, setValueWithLabel);
+
+// DOM agent currently use this (using elementId instead of label)
+export const operateToolWithSimpliedDom = createOperateTool(
+  clickWithElementId,
+  setValueWithElementId,
+);
+
+export const operateToolWithSelector = createOperateTool(
+  clickWithSelector,
+  setValueWithSelector,
+);

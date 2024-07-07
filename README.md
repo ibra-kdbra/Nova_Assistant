@@ -6,6 +6,16 @@ Nova is an intelligent AI partner that understands the user’s intent, navigate
 
 ## Installing and Running
 
+### Download and Install the extension in your browser
+
+1. Go to the [releases page](https://github.com/ibra-kdbra/Nova_Assistant/releases), find the latest version of the extension and download "nova-assistant.zip".
+2. Unzip the file.
+3. Load your extension on Chrome by doing the following:
+   1. Navigate to `chrome://extensions/`
+   2. Toggle `Developer mode`
+   3. Click on `Load unpacked extension`
+   4. Select the unzipped folder
+
 ### Use the extension
 
 *Please note that you may need to refresh the page for the extension to work.*

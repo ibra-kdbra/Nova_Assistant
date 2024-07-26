@@ -78,7 +78,7 @@ const App = () => {
           >
             About this project
           </Link>
-          <Link href="https://github.com/ibra-kdbra" isExternal>
+          <Link href="https://github.com/ibra-kdbra/Nova_Assistant" isExternal>
             GitHub <Icon verticalAlign="text-bottom" as={FaGithub} />
           </Link>
         </HStack>

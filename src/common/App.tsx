@@ -6,6 +6,8 @@ import {
   HStack,
   IconButton,
   Icon,
+  Image,
+  Flex,
 } from "@chakra-ui/react";
 import { SettingsIcon } from "@chakra-ui/icons";
 import { FaGithub } from "react-icons/fa6";
@@ -24,10 +26,13 @@ const App = () => {
   return (
     <ChakraProvider>
       <Box p="8" pb="24" fontSize="lg" w="full">
-        <HStack mb={4} alignItems="center">
-          <Heading as="h1" size="lg" flex={1}>
-            Nova 🤓
-          </Heading>
+        <HStack mb={4} justifyContent="space-between" alignItems="center">
+          <Flex alignItems="center">
+            <Heading as="h1" size="lg">
+              Nova
+            </Heading>
+            <Image src="/nova.png" width="8" height="8" alt="nova logo" />
+          </Flex>
           {hasAPIKey && (
             <IconButton
               icon={<SettingsIcon />}

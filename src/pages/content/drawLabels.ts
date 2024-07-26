@@ -2,7 +2,7 @@ import { getAccessibleName } from "accname";
 import {
   VISIBLE_TEXT_ATTRIBUTE_NAME,
   ARIA_LABEL_ATTRIBUTE_NAME,
-  WEB_WAND_LABEL_ATTRIBUTE_NAME,
+  NOVA_LABEL_ATTRIBUTE_NAME,
 } from "../../constants";
 import { type Knowledge } from "../../helpers/knowledge";
 
@@ -243,7 +243,7 @@ function getLabelData(
       item.role = elem.getAttribute("role") ?? "unknown";
     }
     data.push(item);
-    elem.setAttribute(WEB_WAND_LABEL_ATTRIBUTE_NAME, uidString);
+    elem.setAttribute(NOVA_LABEL_ATTRIBUTE_NAME, uidString);
     uid++;
   }
   let specialElements: Element[] = [];
@@ -285,7 +285,7 @@ function getLabelData(
     // skip if the element is disabled
     if (elem.getAttribute("disabled") != null) return;
     // skip specialElements
-    if (elem.hasAttribute(WEB_WAND_LABEL_ATTRIBUTE_NAME)) return;
+    if (elem.hasAttribute(NOVA_LABEL_ATTRIBUTE_NAME)) return;
     // skip if the element is already touched
     // this is avoid cases where the selector matches nested elements, e.g. an input and its parent label
     if (isTouchedElement(elem)) return;
@@ -361,7 +361,7 @@ function removeAttributeFromAllElements(attribute: string) {
 export function drawLabels(knowledge: Knowledge = {}): LabelData[] {
   // clean up previous attributes since they might be outdated
   // TODO: should be possible to avoid this by keeping track of the elements we touched in a better way
-  removeAttributeFromAllElements(WEB_WAND_LABEL_ATTRIBUTE_NAME);
+  removeAttributeFromAllElements(NOVA_LABEL_ATTRIBUTE_NAME);
   removeAttributeFromAllElements(VISIBLE_TEXT_ATTRIBUTE_NAME);
   removeAttributeFromAllElements(ARIA_LABEL_ATTRIBUTE_NAME);
 

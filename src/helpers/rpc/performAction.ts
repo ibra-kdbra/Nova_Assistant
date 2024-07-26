@@ -1,13 +1,13 @@
 import { DomActions } from "./domActions";
 import {
-  WEB_WAND_LABEL_ATTRIBUTE_NAME,
+  NOVA_LABEL_ATTRIBUTE_NAME,
   VISIBLE_TEXT_ATTRIBUTE_NAME,
 } from "../../constants";
 import { sleep } from "../utils";
 import { type ToolOperation } from "../vision-agent/tools";
 
 function getSelector(label: string): string {
-  return `[${WEB_WAND_LABEL_ATTRIBUTE_NAME}="${label}"]`;
+  return `[${NOVA_LABEL_ATTRIBUTE_NAME}="${label}"]`;
 }
 
 function getFallbackSelector(selectorName: string): string {

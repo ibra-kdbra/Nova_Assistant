@@ -50,7 +50,7 @@
     "@jest/globals": "^29.7.0",
     "@rollup/plugin-typescript": "11.1.5",
     "@testing-library/react": "14.0.0",
-    "@types/chrome": "0.0.251",
+    "@types/chrome": "0.0.269",
     "@types/dom-speech-recognition": "^0.0.4",
     "@types/jest": "29.5.7",
     "@types/lodash": "^4.17.6",

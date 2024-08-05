@@ -53,7 +53,7 @@
     "@types/chrome": "0.0.269",
     "@types/dom-speech-recognition": "^0.0.4",
     "@types/jest": "29.5.7",
-    "@types/lodash": "^4.17.6",
+    "@types/lodash": "^4.17.7",
     "@types/node": "20.11.24",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.2.22",
